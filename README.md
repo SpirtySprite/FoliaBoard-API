@@ -77,13 +77,6 @@ with **zero locks**, and it's all hidden. You describe *what* to show; FoliaBoar
 
 ## Installation
 
-Two ways to use it (see [`INSTALLATION.md`](INSTALLATION.md) for the full guide):
-
-- **Shade** `foliaboard-core` into your plugin (self-contained; ships **no `plugin.yml`** so it can't
-  clobber yours) — shown below.
-- **Install the standalone `FoliaBoard` plugin** (the Modrinth download) and `softdepend: [FoliaBoard]`
-  — one shared jar for all your plugins; then `ScoreboardAPI.get()...`.
-
 **1. Depend on the core library:**
 
 ```xml
