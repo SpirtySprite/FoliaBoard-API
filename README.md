@@ -96,7 +96,7 @@ Two ways to use it (see [`INSTALLATION.md`](INSTALLATION.md) for the full guide)
 
 	<dependency>
 	    <groupId>com.github.SpirtySprite</groupId>
-	    <artifactId>FoliaNPC-API</artifactId>
+	    <artifactId>FoliaBoard-API</artifactId>
 	    <version>1.0.0</version>
 	</dependency>
 ```
