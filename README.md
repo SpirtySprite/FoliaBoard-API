@@ -87,34 +87,21 @@ Two ways to use it (see [`INSTALLATION.md`](INSTALLATION.md) for the full guide)
 **1. Depend on the core library:**
 
 ```xml
-<repositories>
-  <repository><id>papermc</id><url>https://repo.papermc.io/repository/maven-public/</url></repository>
-</repositories>
+	<repositories>
+		<repository>
+		    <id>jitpack.io</id>
+		    <url>https://jitpack.io</url>
+		</repository>
+	</repositories>
 
-<dependency>
-  <groupId>net.foliaboard</groupId>
-  <artifactId>foliaboard-core</artifactId>
-  <version>1.0.0</version>
-</dependency>
+	<dependency>
+	    <groupId>com.github.SpirtySprite</groupId>
+	    <artifactId>FoliaNPC-API</artifactId>
+	    <version>Tag</version>
+	</dependency>
 ```
 
-**2. Shade + relocate it** (so two plugins bundling it can't collide):
-
-```xml
-<plugin>
-  <groupId>org.apache.maven.plugins</groupId>
-  <artifactId>maven-shade-plugin</artifactId>
-  <version>3.6.0</version>
-  <executions><execution><phase>package</phase><goals><goal>shade</goal></goals>
-    <configuration><relocations><relocation>
-      <pattern>net.foliaboard</pattern>
-      <shadedPattern>com.yourplugin.libs.foliaboard</shadedPattern>
-    </relocation></relocations></configuration>
-  </execution></executions>
-</plugin>
-```
-
-**3. Mark your plugin Folia-ready** — required or it won't load on Folia:
+**2. Mark your plugin Folia-ready** — required or it won't load on Folia:
 
 ```yaml
 name: YourPlugin
