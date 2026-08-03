@@ -1,4 +1,15 @@
 jdk:
   - openjdk21
 install:
-  - sh ./mvnw -DskipTests clean install
+  - |
+    . "$HOME/.sdkman/bin/sdkman-init.sh"
+    # JitPack pins openjdk21 to 21.0.2-open, whose download intermittently fails from a stale
+    # SDKMAN cache (leaving JAVA_HOME undefined). Refresh the cache and (re)install a JDK 21 --
+    # falling back to Temurin if the pinned build is unavailable -- before building.
+    sdk update || true
+    sdk install java 21.0.2-open < /dev/null \
+      || sdk install java 21.0.5-tem < /dev/null \
+      || sdk install java 21.0.4-tem < /dev/null
+    export JAVA_HOME="$HOME/.sdkman/candidates/java/current"
+    java -version
+    sh ./mvnw -DskipTests clean install
