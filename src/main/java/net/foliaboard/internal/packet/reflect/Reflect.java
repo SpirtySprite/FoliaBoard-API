@@ -52,6 +52,20 @@ public final class Reflect {
                 + " with " + paramCount + " params");
     }
 
+    public static Method optionalMethodDeep(Class<?> owner, String name, int paramCount) {
+        Class<?> c = owner;
+        while (c != null) {
+            for (Method m : c.getDeclaredMethods()) {
+                if (m.getName().equals(name) && m.getParameterCount() == paramCount) {
+                    m.setAccessible(true);
+                    return m;
+                }
+            }
+            c = c.getSuperclass();
+        }
+        return null;
+    }
+
     public static Method methodByNameDeep(Class<?> owner, String name, int paramCount) {
         Class<?> c = owner;
         while (c != null) {

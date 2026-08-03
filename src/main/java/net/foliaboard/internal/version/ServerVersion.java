@@ -43,7 +43,14 @@ public final class ServerVersion {
         }
     }
 
+    public boolean isCalendarScheme() {
+        return major != 1;
+    }
+
     public boolean isAtLeast(int minor, int patch) {
+        if (isCalendarScheme()) {
+            return true;
+        }
         if (this.minor != minor) {
             return this.minor > minor;
         }

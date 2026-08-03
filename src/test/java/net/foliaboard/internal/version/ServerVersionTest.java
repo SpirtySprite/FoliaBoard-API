@@ -39,6 +39,13 @@ class ServerVersionTest {
     }
 
     @Test
+    void newYearBasedSchemeIsNewerThanAny1x() {
+        assertTrue(ServerVersion.parse("26.2.0").isAtLeast(20, 6));
+        assertTrue(ServerVersion.parse("26.2").isAtLeast(20, 6));
+        assertTrue(ServerVersion.parse("26.2.0").supportsScoreDisplayName());
+    }
+
+    @Test
     void scoreDisplayNameRequires1203() {
         assertTrue(ServerVersion.parse("1.20.3").supportsScoreDisplayName());
         assertTrue(ServerVersion.parse("1.21.0").supportsScoreDisplayName());

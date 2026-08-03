@@ -141,19 +141,19 @@ public final class NmsPacketAdapter implements PacketAdapter {
 
         playerTeamClass = Reflect.clazz("net.minecraft.world.scores.PlayerTeam");
         playerTeamCtor = Reflect.constructor(playerTeamClass, scoreboardClass, String.class);
-        Class<?> nmsComponent = Reflect.clazz("net.minecraft.network.chat.Component");
         chatFormattingClass = Reflect.clazz("net.minecraft.ChatFormatting");
         teamVisibilityClass = Reflect.clazz("net.minecraft.world.scores.Team$Visibility");
         teamCollisionClass = Reflect.clazz("net.minecraft.world.scores.Team$CollisionRule");
-        teamSetPrefix = Reflect.method(playerTeamClass, "setPlayerPrefix", nmsComponent);
-        teamSetSuffix = Reflect.method(playerTeamClass, "setPlayerSuffix", nmsComponent);
-        teamSetDisplayName = Reflect.method(playerTeamClass, "setDisplayName", nmsComponent);
-        teamSetColor = Reflect.method(playerTeamClass, "setColor", chatFormattingClass);
-        teamSetNametagVisibility = Reflect.method(playerTeamClass, "setNameTagVisibility", teamVisibilityClass);
-        teamSetCollision = Reflect.method(playerTeamClass, "setCollisionRule", teamCollisionClass);
-        teamSetFriendlyFire = Reflect.method(playerTeamClass, "setAllowFriendlyFire", boolean.class);
-        teamSetSeeInvisibles = Reflect.method(playerTeamClass, "setSeeFriendlyInvisibles", boolean.class);
-        teamGetPlayers = Reflect.method(playerTeamClass, "getPlayers");
+        teamSetPrefix = Reflect.optionalMethodDeep(playerTeamClass, "setPlayerPrefix", 1);
+        teamSetSuffix = Reflect.optionalMethodDeep(playerTeamClass, "setPlayerSuffix", 1);
+        teamSetDisplayName = Reflect.optionalMethodDeep(playerTeamClass, "setDisplayName", 1);
+        teamSetColor = Reflect.optionalMethodDeep(playerTeamClass, "setColor", 1);
+        teamSetNametagVisibility = Reflect.optionalMethodDeep(playerTeamClass, "setNameTagVisibility", 1);
+        teamSetCollision = Reflect.optionalMethodDeep(playerTeamClass, "setCollisionRule", 1);
+        teamSetFriendlyFire = Reflect.optionalMethodDeep(playerTeamClass, "setAllowFriendlyFire", 1);
+        teamSetSeeInvisibles = Reflect.optionalMethodDeep(playerTeamClass, "setSeeFriendlyInvisibles", 1);
+        teamGetPlayers = Reflect.optionalMethodDeep(playerTeamClass, "getPlayers", 0);
+        warnMissingTeamMethods();
         Class<?> teamPacket = Reflect.clazz(
                 "net.minecraft.network.protocol.game.ClientboundSetPlayerTeamPacket");
         createAddOrModify = Reflect.method(teamPacket, "createAddOrModifyPacket", playerTeamClass, boolean.class);
@@ -442,27 +442,62 @@ public final class NmsPacketAdapter implements PacketAdapter {
 
     private Object buildTeam(TeamData data, Collection<String> entries) {
         Object team = Reflect.instantiate(playerTeamCtor, dummyScoreboard, data.name());
-        Reflect.invoke(teamSetDisplayName, team, components.toVanilla(data.displayName()));
-        Reflect.invoke(teamSetPrefix, team, components.toVanilla(data.prefix()));
-        Reflect.invoke(teamSetSuffix, team, components.toVanilla(data.suffix()));
-        Reflect.invoke(teamSetNametagVisibility, team,
-                Reflect.enumValue(teamVisibilityClass, data.nametagVisibility().nmsName()));
-        Reflect.invoke(teamSetCollision, team,
-                Reflect.enumValue(teamCollisionClass, data.collision().nmsName()));
-        Reflect.invoke(teamSetFriendlyFire, team, data.friendlyFire());
-        Reflect.invoke(teamSetSeeInvisibles, team, data.seeFriendlyInvisibles());
+        if (teamSetDisplayName != null) {
+            Reflect.invoke(teamSetDisplayName, team, components.toVanilla(data.displayName()));
+        }
+        if (teamSetPrefix != null) {
+            Reflect.invoke(teamSetPrefix, team, components.toVanilla(data.prefix()));
+        }
+        if (teamSetSuffix != null) {
+            Reflect.invoke(teamSetSuffix, team, components.toVanilla(data.suffix()));
+        }
+        if (teamSetNametagVisibility != null) {
+            Reflect.invoke(teamSetNametagVisibility, team,
+                    Reflect.enumValue(teamVisibilityClass, data.nametagVisibility().nmsName()));
+        }
+        if (teamSetCollision != null) {
+            Reflect.invoke(teamSetCollision, team,
+                    Reflect.enumValue(teamCollisionClass, data.collision().nmsName()));
+        }
+        if (teamSetFriendlyFire != null) {
+            Reflect.invoke(teamSetFriendlyFire, team, data.friendlyFire());
+        }
+        if (teamSetSeeInvisibles != null) {
+            Reflect.invoke(teamSetSeeInvisibles, team, data.seeFriendlyInvisibles());
+        }
         NamedTextColor color = data.color();
-        if (color != null) {
+        if (color != null && teamSetColor != null) {
             Object chatFormatting = chatFormattingFor(color);
             if (chatFormatting != null) {
-                Reflect.invoke(teamSetColor, team, chatFormatting);
+                try {
+                    Reflect.invoke(teamSetColor, team, chatFormatting);
+                } catch (RuntimeException ignored) {
+                }
             }
         }
-        if (entries != null && !entries.isEmpty()) {
+        if (entries != null && !entries.isEmpty() && teamGetPlayers != null) {
             Collection<String> players = Reflect.invoke(teamGetPlayers, team);
             players.addAll(entries);
         }
         return team;
+    }
+
+    private void warnMissingTeamMethods() {
+        java.util.List<String> missing = new java.util.ArrayList<>();
+        if (teamSetPrefix == null) missing.add("setPlayerPrefix");
+        if (teamSetSuffix == null) missing.add("setPlayerSuffix");
+        if (teamSetDisplayName == null) missing.add("setDisplayName");
+        if (teamSetColor == null) missing.add("setColor");
+        if (teamSetNametagVisibility == null) missing.add("setNameTagVisibility");
+        if (teamSetCollision == null) missing.add("setCollisionRule");
+        if (teamSetFriendlyFire == null) missing.add("setAllowFriendlyFire");
+        if (teamSetSeeInvisibles == null) missing.add("setSeeFriendlyInvisibles");
+        if (teamGetPlayers == null) missing.add("getPlayers");
+        if (!missing.isEmpty()) {
+            java.util.logging.Logger.getLogger("FoliaBoard").warning(
+                    "FoliaBoard: PlayerTeam methods not found on this server (" + String.join(", ", missing)
+                    + "); the matching nametag/team styling is disabled. The sidebar is unaffected.");
+        }
     }
 
     private Object chatFormattingFor(NamedTextColor color) {
