@@ -36,7 +36,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
-// Entry point: create one in onEnable, close() in onDisable. All methods are thread-safe.
 public final class FoliaBoard {
     private final Plugin plugin;
     private final PacketAdapter adapter;
@@ -196,16 +195,16 @@ public final class FoliaBoard {
     }
 
     public @NotNull FoliaBoard registerLayout(@NotNull Layout layout) {
-        layouts.put(layout.name().toLowerCase(), layout);
+        layouts.put(layout.name().toLowerCase(java.util.Locale.ROOT), layout);
         return this;
     }
 
     public @Nullable Layout layout(@NotNull String name) {
-        return layouts.get(name.toLowerCase());
+        return layouts.get(name.toLowerCase(java.util.Locale.ROOT));
     }
 
     public @NotNull FoliaBoard unregisterLayout(@NotNull String name) {
-        layouts.remove(name.toLowerCase());
+        layouts.remove(name.toLowerCase(java.util.Locale.ROOT));
         return this;
     }
 

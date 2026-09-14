@@ -8,7 +8,11 @@ import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -16,6 +20,7 @@ public final class Placeholders {
     private static final Pattern TOKEN = Pattern.compile("%([^%]+)%");
 
     private final List<PlaceholderResolver> resolvers = new CopyOnWriteArrayList<>();
+    private final Map<String, Function<Player, String>> keyed = new ConcurrentHashMap<>();
     private final boolean papiPresent;
     private Method papiSetPlaceholders;
 
@@ -40,8 +45,14 @@ public final class Placeholders {
         return this;
     }
 
-    public @NotNull Placeholders register(@NotNull String key, @NotNull java.util.function.Function<Player, String> value) {
-        return register((player, k) -> k.equalsIgnoreCase(key) ? value.apply(player) : null);
+    public @NotNull Placeholders register(@NotNull String key, @NotNull Function<Player, String> value) {
+        keyed.put(key.toLowerCase(Locale.ROOT), value);
+        return this;
+    }
+
+    public @NotNull Placeholders unregister(@NotNull String key) {
+        keyed.remove(key.toLowerCase(Locale.ROOT));
+        return this;
     }
 
     public @NotNull String apply(@NotNull Player player, @NotNull String text) {
@@ -82,7 +93,6 @@ public final class Placeholders {
         if (text.indexOf('%') < 0) {
             return text;
         }
-        MiniMessage mm = MiniMessage.miniMessage();
         Matcher matcher = TOKEN.matcher(text);
         StringBuilder out = new StringBuilder();
         while (matcher.find()) {
@@ -93,14 +103,36 @@ public final class Placeholders {
                 String papi = applyPapi(player, token);
                 value = papi.equals(token) ? null : papi;
             }
-            String replacement = value == null ? token : mm.escapeTags(value);
+            String replacement = value == null ? token : escape(value);
             matcher.appendReplacement(out, Matcher.quoteReplacement(replacement));
         }
         matcher.appendTail(out);
         return out.toString();
     }
 
+    private static String escape(String value) {
+        if (value.indexOf('<') < 0 && value.indexOf('\\') < 0) {
+            return value;
+        }
+        StringBuilder escaped = new StringBuilder(value.length() + 8);
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            if (character == '<' || character == '\\') {
+                escaped.append('\\');
+            }
+            escaped.append(character);
+        }
+        return escaped.toString();
+    }
+
     private String resolveLocal(Player player, String key) {
+        Function<Player, String> direct = keyed.isEmpty() ? null : keyed.get(key.toLowerCase(Locale.ROOT));
+        if (direct != null) {
+            String value = direct.apply(player);
+            if (value != null) {
+                return value;
+            }
+        }
         for (PlaceholderResolver resolver : resolvers) {
             String v = resolver.resolve(player, key);
             if (v != null) {
@@ -111,7 +143,7 @@ public final class Placeholders {
     }
 
     private static String builtin(Player player, String key) {
-        return switch (key.toLowerCase()) {
+        return switch (key.toLowerCase(Locale.ROOT)) {
             case "player", "player_name", "name" -> player.getName();
             case "displayname" -> net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
                     .plainText().serialize(player.displayName());
