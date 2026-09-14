@@ -10,10 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * Guards the placeholder engine, including the injection-safety fix: values must not be able to smuggle
- * MiniMessage tags into a board.
- */
 class PlaceholdersTest {
 
     private Player player() {
@@ -30,6 +26,27 @@ class PlaceholdersTest {
     }
 
     @Test
+    void keyedPlaceholdersIgnoreCaseAndCanBeReplaced() {
+        Placeholders ph = new Placeholders();
+        ph.register("Balance", p -> "10");
+        assertEquals("10 10", ph.apply(player(), "%balance% %BALANCE%"));
+        ph.register("balance", p -> "20");
+        assertEquals("20", ph.apply(player(), "%balance%"));
+        ph.unregister("BALANCE");
+        assertEquals("%balance%", ph.apply(player(), "%balance%"));
+    }
+
+    @Test
+    void plainValuesSkipEscapingButBackslashesStayLiteral() {
+        Placeholders ph = new Placeholders();
+        ph.register("plain", p -> "Steve");
+        ph.register("slash", p -> "a\\");
+        assertEquals("<green>Steve", ph.resolveForMiniMessage(player(), "<green>%plain%"));
+        Component out = ph.component(player(), "%slash%<green>x");
+        assertEquals("a\\x", PlainTextComponentSerializer.plainText().serialize(out));
+    }
+
+    @Test
     void leavesUnknownTokensUntouched() {
         Placeholders ph = new Placeholders();
         assertEquals("x %unknown% y", ph.apply(player(), "x %unknown% y"));
@@ -38,15 +55,12 @@ class PlaceholdersTest {
     @Test
     void componentValuesAreEscapedAgainstMiniMessageInjection() {
         Placeholders ph = new Placeholders();
-        // A hostile value: if it were parsed as MiniMessage it would inject a click event + red colour.
         ph.register("evil", p -> "<red><click:run_command:/op Steve>hi</click>");
         Component out = ph.component(player(), "Name: %evil%");
 
-        // The tags must survive as literal text, not become styling/click behaviour.
         String plain = PlainTextComponentSerializer.plainText().serialize(out);
         assertTrue(plain.contains("<red>"), "MiniMessage tags in a value must render literally: " + plain);
         assertTrue(plain.contains("<click:run_command:/op Steve>"), plain);
-        // And the component must not actually carry a click event.
         assertFalse(hasClick(out), "placeholder value must not inject a click event");
     }
 
@@ -56,7 +70,6 @@ class PlaceholdersTest {
         ph.register("name", p -> "Steve");
         Component out = ph.component(player(), "<green>%name%");
         assertEquals("Steve", PlainTextComponentSerializer.plainText().serialize(out));
-        // The <green> from the template (not a value) should still apply.
         assertEquals(net.kyori.adventure.text.format.NamedTextColor.GREEN, out.color());
     }
 
