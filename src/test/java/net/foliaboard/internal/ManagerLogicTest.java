@@ -25,14 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.lenient;
 
-/**
- * Tests the packet <i>decisions</i> the managers make - diffing, idempotent init, create-vs-modify -
- * against a recording adapter, with the scheduler run inline. This is the layer that produced the
- * duplicate-objective crash; it's now covered.
- */
 class ManagerLogicTest {
 
-    /** Records how many of each packet the managers ask for. */
     static final class Recording implements PacketAdapter {
         int createObjective, updateObjective, removeObjective, setDisplaySlot, setScore, resetScore;
         int createTeam, updateTeam, removeTeam, teamEntries;
@@ -116,11 +110,11 @@ class ManagerLogicTest {
         assertEquals(2, adapter.setScore, "one score per line");
 
         int before = adapter.setScore;
-        sb.line(0, Component.text("A2"));           // change one line
+        sb.line(0, Component.text("A2"));
         assertEquals(before + 1, adapter.setScore, "only the changed line is resent");
 
         int after = adapter.setScore;
-        sb.line(0, Component.text("A2"));           // set the same value again
+        sb.line(0, Component.text("A2"));
         assertEquals(after, adapter.setScore, "unchanged line produces no packet");
     }
 
@@ -128,7 +122,7 @@ class ManagerLogicTest {
     void sidebarNeverSendsMoreThanTheClientLimit() {
         SidebarImpl sb = new SidebarImpl(plugin, adapter, player, "obj", List.of());
         for (int i = 0; i < 25; i++) {
-            sb.line(i, Component.text("L" + i));   // 25 lines, but the client shows 15
+            sb.line(i, Component.text("L" + i));
         }
         assertEquals(15, adapter.setScore, "lines beyond the 15-line cap must not be sent");
     }
@@ -143,7 +137,7 @@ class ManagerLogicTest {
     void belowNameInitIsIdempotent() {
         ScoreObjectiveImpl obj = new ScoreObjectiveImpl(plugin, adapter, "fb_bn", DisplaySlotType.BELOW_NAME);
         obj.onJoin(player);
-        obj.onJoin(player);   // second init must NOT re-create (this was the duplicate-objective crash)
+        obj.onJoin(player);
         assertEquals(1, adapter.createObjective);
     }
 
@@ -154,7 +148,7 @@ class ManagerLogicTest {
         NametagImpl tag = new NametagImpl(plugin, adapter, target, "team1", List::of);
 
         tag.applyTo(player);
-        tag.applyTo(player);   // second apply to same viewer must modify, not re-create
+        tag.applyTo(player);
 
         assertEquals(1, adapter.createTeam);
         assertEquals(1, adapter.updateTeam);

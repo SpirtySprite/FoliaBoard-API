@@ -7,10 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-/**
- * The number-format factories are the public surface consumers use; these lock in their shapes so a
- * refactor of the sealed hierarchy can't silently change behaviour.
- */
 class NumberFormatTest {
 
     @Test
