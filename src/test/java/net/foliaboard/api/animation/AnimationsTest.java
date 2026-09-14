@@ -10,10 +10,6 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * Animations are wall-clock driven, so these assert time-independent invariants (length, membership,
- * prefix, no crashes on emoji) rather than exact frames.
- */
 class AnimationsTest {
     private static final PlainTextComponentSerializer PLAIN = PlainTextComponentSerializer.plainText();
 
@@ -39,7 +35,6 @@ class AnimationsTest {
 
     @Test
     void scrollTextDoesNotSplitEmoji() {
-        // A surrogate-pair emoji must never appear as a broken half.
         Animation<Component> a = Animations.scrollText(Duration.ofMillis(20), "ab🔥cd", 4,
                 net.kyori.adventure.text.format.NamedTextColor.WHITE);
         for (int i = 0; i < 100; i++) {

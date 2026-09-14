@@ -6,10 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * Guards the version gate FoliaBoard relies on. These are the checks most likely to break silently
- * when a new Minecraft version is released, so they are worth locking down.
- */
 class ServerVersionTest {
 
     @Test
@@ -54,7 +50,6 @@ class ServerVersionTest {
 
     @Test
     void patchComparisonIsNumericNotLexical() {
-        // 1.21.11 must be >= 1.21.2 (lexical string compare would get this wrong).
         assertTrue(ServerVersion.parse("1.21.11").isAtLeast(21, 2));
         assertFalse(ServerVersion.parse("1.21.2").isAtLeast(21, 11));
     }
