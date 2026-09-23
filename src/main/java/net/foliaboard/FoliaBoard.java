@@ -1,6 +1,8 @@
 package net.foliaboard;
 
 import net.foliaboard.api.BoardBuilder;
+import net.foliaboard.api.BossBarBuilder;
+import net.foliaboard.api.ManagedBossBar;
 import net.foliaboard.api.FoliaBoardStats;
 import net.foliaboard.api.Nametag;
 import net.foliaboard.api.NametagBuilder;
@@ -16,6 +18,7 @@ import net.foliaboard.api.hook.LineProcessor;
 import net.foliaboard.api.layout.Layout;
 import net.foliaboard.api.placeholder.Placeholders;
 import net.foliaboard.internal.board.SidebarImpl;
+import net.foliaboard.internal.bossbar.ManagedBossBarImpl;
 import net.foliaboard.internal.listener.FoliaBoardListener;
 import net.foliaboard.internal.metrics.PacketMetrics;
 import net.foliaboard.internal.nametag.NametagManager;
@@ -47,6 +50,7 @@ public final class FoliaBoard {
     private final Map<UUID, SidebarImpl> sidebars = new ConcurrentHashMap<>();
     private final Map<UUID, Schedulers.ScheduledHandle> refreshHandles = new ConcurrentHashMap<>();
     private final Map<UUID, TabList> tabs = new ConcurrentHashMap<>();
+    private final Map<UUID, Map<String, ManagedBossBarImpl>> bossBars = new ConcurrentHashMap<>();
     private volatile TabLayout globalTab;
     private final NametagManager nametags;
     private final AtomicInteger objectiveCounter = new AtomicInteger();
@@ -353,6 +357,48 @@ public final class FoliaBoard {
         tabs.clear();
     }
 
+    public @NotNull BossBarBuilder bossBar(@NotNull Player player, @NotNull String id) {
+        ensureOpen();
+        return new BossBarBuilder(this, player, id);
+    }
+
+    public @Nullable ManagedBossBar bossBarIfPresent(@NotNull Player player, @NotNull String id) {
+        Map<String, ManagedBossBarImpl> bars = bossBars.get(player.getUniqueId());
+        return bars == null ? null : bars.get(id);
+    }
+
+    public void hideBossBar(@NotNull Player player, @NotNull String id) {
+        ManagedBossBar bar = bossBarIfPresent(player, id);
+        if (bar != null) {
+            bar.hide();
+        }
+    }
+
+    public void trackBossBar(@NotNull Player player, @NotNull String id, @NotNull ManagedBossBarImpl bar) {
+        ManagedBossBarImpl previous = bossBars.computeIfAbsent(player.getUniqueId(), key -> new ConcurrentHashMap<>())
+                .put(id, bar);
+        if (previous != null && previous != bar) {
+            previous.hideSilently();
+        }
+    }
+
+    public void forgetBossBar(@NotNull Player player, @NotNull String id) {
+        bossBars.computeIfPresent(player.getUniqueId(), (key, bars) -> {
+            ManagedBossBarImpl current = bars.get(id);
+            if (current != null && current.hidden()) {
+                bars.remove(id);
+            }
+            return bars.isEmpty() ? null : bars;
+        });
+    }
+
+    private void hideBossBars(UUID player) {
+        Map<String, ManagedBossBarImpl> bars = bossBars.remove(player);
+        if (bars != null) {
+            bars.values().forEach(ManagedBossBarImpl::hideSilently);
+        }
+    }
+
     public void tabName(@NotNull Player target, @NotNull String miniMessage) {
         tabName(target, net.foliaboard.api.text.Text.parse(miniMessage));
     }
@@ -492,6 +538,7 @@ public final class FoliaBoard {
         if (tab != null) {
             tab.close();
         }
+        hideBossBars(player.getUniqueId());
         placeholders.forget(player.getUniqueId());
         nametags.onQuit(player);
         if (belowName != null) {
@@ -521,6 +568,9 @@ public final class FoliaBoard {
             tab.close();
         }
         tabs.clear();
+        for (UUID player : List.copyOf(bossBars.keySet())) {
+            hideBossBars(player);
+        }
         nametags.closeAll();
         if (belowName != null) {
             belowName.closeAll();

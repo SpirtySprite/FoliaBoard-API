@@ -68,6 +68,50 @@ public final class Animations {
         };
     }
 
+    public static @NotNull Animation<Component> frames(@NotNull Duration period, @NotNull String... anyFormat) {
+        List<Component> parsed = new ArrayList<>(anyFormat.length);
+        for (String frame : anyFormat) {
+            parsed.add(net.foliaboard.api.text.Text.parse(frame));
+        }
+        return cycle(period, parsed);
+    }
+
+    public static @NotNull Animation<Component> gradientWave(@NotNull Duration period, @NotNull String text,
+                                                             @NotNull TextColor... colors) {
+        if (colors.length < 2) {
+            throw new IllegalArgumentException("a gradient needs at least two colors");
+        }
+        StringBuilder stops = new StringBuilder();
+        for (TextColor color : colors) {
+            stops.append(':').append(color.asHexString());
+        }
+        String escaped = net.foliaboard.api.text.Text.escape(text);
+        long periodMs = Math.max(1, period.toMillis());
+        int steps = 20;
+        List<Component> frames = new ArrayList<>(steps);
+        for (int step = 0; step < steps; step++) {
+            double phase = -1.0D + 2.0D * step / steps;
+            frames.add(MiniMessage.miniMessage().deserialize("<gradient" + stops + ":"
+                    + String.format(java.util.Locale.ROOT, "%.2f", phase) + ">" + escaped + "</gradient>"));
+        }
+        long frameMs = Math.max(1, periodMs / steps);
+        return () -> frames.get((int) ((System.currentTimeMillis() / frameMs) % steps));
+    }
+
+    public static @NotNull Animation<Component> blink(@NotNull Duration period, @NotNull Component shown) {
+        long periodMs = Math.max(1, period.toMillis());
+        return () -> (System.currentTimeMillis() / periodMs) % 2 == 0 ? shown : Component.empty();
+    }
+
+    public static <T> @NotNull Animation<T> sequence(@NotNull List<Animation<T>> animations, @NotNull Duration each) {
+        if (animations.isEmpty()) {
+            throw new IllegalArgumentException("animations must not be empty");
+        }
+        List<Animation<T>> copy = List.copyOf(animations);
+        long eachMs = Math.max(1, each.toMillis());
+        return () -> copy.get((int) ((System.currentTimeMillis() / eachMs) % copy.size())).current();
+    }
+
     public static @NotNull Component mini(@NotNull String miniMessage) {
         return MiniMessage.miniMessage().deserialize(miniMessage);
     }
