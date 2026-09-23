@@ -32,13 +32,15 @@ public final class NametagManager {
     }
 
     public @NotNull Nametag get(@NotNull Player target, @Nullable Integer sortWeight, boolean applyNow) {
-        NametagImpl existing = byTarget.get(target.getUniqueId());
-        if (existing != null && !existing.removed()) {
-            return existing;
-        }
-        NametagImpl impl = new NametagImpl(plugin, adapter, target, generateTeamName(sortWeight), online);
-        byTarget.put(target.getUniqueId(), impl);
-        if (applyNow) {
+        boolean[] created = {false};
+        NametagImpl impl = byTarget.compute(target.getUniqueId(), (id, existing) -> {
+            if (existing != null && !existing.removed()) {
+                return existing;
+            }
+            created[0] = true;
+            return new NametagImpl(plugin, adapter, target, generateTeamName(sortWeight), online);
+        });
+        if (created[0] && applyNow) {
             impl.apply();
         }
         return impl;
@@ -47,7 +49,7 @@ public final class NametagManager {
     private String generateTeamName(@Nullable Integer sortWeight) {
         String unique = Integer.toHexString(counter.getAndIncrement());
         String name = sortWeight != null
-                ? String.format("%04d", Math.max(0, Math.min(9999, sortWeight))) + unique
+                ? String.format(java.util.Locale.ROOT, "%04d", Math.max(0, Math.min(9999, sortWeight))) + unique
                 : "fbn" + unique;
         if (name.length() > 16) {
             throw new IllegalStateException("FoliaBoard: generated team name exceeds 16 chars: " + name);
