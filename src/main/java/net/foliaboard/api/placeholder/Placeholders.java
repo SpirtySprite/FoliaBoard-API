@@ -141,7 +141,7 @@ public final class Placeholders {
 
     private String render(String value) {
         String escaped = Text.escape(value);
-        return convertLegacy ? Legacy.toMini(escaped) : escaped;
+        return convertLegacy ? Legacy.toMini(escaped) : Legacy.strip(escaped);
     }
 
     private String resolve(Player player, String key, String token) {
