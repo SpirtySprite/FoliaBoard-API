@@ -58,4 +58,37 @@ class AnimationsTest {
             assertTrue(text.startsWith(shown), "typewriter showed a non-prefix: " + shown);
         }
     }
+
+    @Test
+    void gradientWaveKeepsTheText() {
+        Animation<Component> a = Animations.gradientWave(Duration.ofMillis(400), "Nexus",
+                net.kyori.adventure.text.format.NamedTextColor.LIGHT_PURPLE,
+                net.kyori.adventure.text.format.NamedTextColor.AQUA);
+        for (int i = 0; i < 50; i++) {
+            assertEquals("Nexus", PLAIN.serialize(a.current()));
+        }
+    }
+
+    @Test
+    void framesParseLegacyAndMiniMessage() {
+        Animation<Component> a = Animations.frames(Duration.ofMillis(10), "&aOne", "<red>One");
+        assertEquals("One", PLAIN.serialize(a.current()));
+    }
+
+    @Test
+    void blinkAlternatesBetweenShownAndEmpty() {
+        Animation<Component> a = Animations.blink(Duration.ofMillis(5), Component.text("!"));
+        Set<String> seen = new java.util.HashSet<>();
+        long until = System.currentTimeMillis() + 200;
+        while (System.currentTimeMillis() < until && seen.size() < 2) {
+            seen.add(PLAIN.serialize(a.current()));
+        }
+        assertEquals(Set.of("!", ""), seen);
+    }
+
+    @Test
+    void mapAndConstantCompose() {
+        Animation<Integer> constant = Animation.constant(21);
+        assertEquals(42, constant.map(value -> value * 2).current());
+    }
 }
