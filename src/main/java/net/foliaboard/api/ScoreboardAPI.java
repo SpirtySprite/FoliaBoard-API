@@ -11,7 +11,11 @@ public final class ScoreboardAPI {
     private ScoreboardAPI() {
     }
 
-    public static @NotNull FoliaBoard init(@NotNull Plugin plugin) {
+    public static synchronized @NotNull FoliaBoard init(@NotNull Plugin plugin) {
+        FoliaBoard previous = instance;
+        if (previous != null) {
+            previous.close();
+        }
         FoliaBoard board = FoliaBoard.create(plugin);
         instance = board;
         return board;
@@ -29,7 +33,7 @@ public final class ScoreboardAPI {
         return instance != null;
     }
 
-    public static void shutdown() {
+    public static synchronized void shutdown() {
         FoliaBoard local = instance;
         if (local != null) {
             local.close();

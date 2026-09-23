@@ -7,6 +7,8 @@ import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public final class Schedulers {
@@ -42,9 +44,14 @@ public final class Schedulers {
         }
         long delay = Math.max(1, delayTicks);
         long period = Math.max(1, periodTicks);
-        var handle = Bukkit.getGlobalRegionScheduler()
-                .runAtFixedRate(plugin, scheduledTask -> task.run(), delay, period);
-        return handle::cancel;
+        try {
+            var handle = Bukkit.getGlobalRegionScheduler()
+                    .runAtFixedRate(plugin, scheduledTask -> task.run(), delay, period);
+            return handle::cancel;
+        } catch (IllegalPluginAccessException disabledMidCall) {
+            return () -> {
+            };
+        }
     }
 
     public static void async(@NotNull Plugin plugin, @NotNull Runnable task) {
@@ -55,7 +62,25 @@ public final class Schedulers {
         if (!plugin.isEnabled()) {
             return;
         }
-        Bukkit.getAsyncScheduler().runNow(plugin, scheduledTask -> task.run());
+        try {
+            Bukkit.getAsyncScheduler().runNow(plugin, scheduledTask -> task.run());
+        } catch (IllegalPluginAccessException ignored) {
+        }
+    }
+
+    public static void asyncLater(@NotNull Plugin plugin, @NotNull Runnable task, @NotNull Duration delay) {
+        if (synchronousForTesting) {
+            task.run();
+            return;
+        }
+        if (!plugin.isEnabled()) {
+            return;
+        }
+        try {
+            Bukkit.getAsyncScheduler().runDelayed(plugin, scheduledTask -> task.run(),
+                    Math.max(1, delay.toMillis()), TimeUnit.MILLISECONDS);
+        } catch (IllegalPluginAccessException ignored) {
+        }
     }
 
     public static void global(@NotNull Plugin plugin, @NotNull Runnable task) {
@@ -66,7 +91,10 @@ public final class Schedulers {
         if (!plugin.isEnabled()) {
             return;
         }
-        Bukkit.getGlobalRegionScheduler().run(plugin, scheduledTask -> task.run());
+        try {
+            Bukkit.getGlobalRegionScheduler().run(plugin, scheduledTask -> task.run());
+        } catch (IllegalPluginAccessException ignored) {
+        }
     }
 
     public static boolean onEntity(@NotNull Plugin plugin, @NotNull Entity entity,
