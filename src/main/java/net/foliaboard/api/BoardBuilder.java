@@ -169,48 +169,50 @@ public final class BoardBuilder {
         sidebar.lineProcessors(processors);
         int maxIndex = lines.isEmpty() ? -1 : lines.lastKey();
         boolean dynamic = titleDynamic || lines.values().stream().anyMatch(LineSpec::dynamic);
-
-        Runnable apply = () -> {
-            if (sidebar.closed() || !player.isOnline()) {
-                return;
-            }
-
-            sidebar.clearLines();
-            sidebar.title(titleRenderer.apply(player));
-            int row = 0;
-            for (int i = 0; i <= maxIndex; i++) {
-                LineSpec spec = lines.get(i);
-                if (spec == null) {
-                    sidebar.line(row++, Component.empty());
-                } else if (spec.condition() != null && !spec.condition().test(player)) {
-                    continue;
-                } else if (spec.format() != null) {
-                    sidebar.line(row++, spec.renderer().apply(player), spec.format());
-                } else {
-                    sidebar.line(row++, spec.renderer().apply(player));
-                }
-            }
-        };
-
+        Runnable apply = () -> paint(sidebar, maxIndex);
         Schedulers.onEntity(board.plugin(), player, apply);
-
         if (dynamic) {
-            int interval = refreshTicks > 0 ? refreshTicks
-                    : animated ? ANIMATION_REFRESH_TICKS : PLACEHOLDER_REFRESH_TICKS;
-            Schedulers.ScheduledHandle handle = Schedulers.entityTimer(board.plugin(), player, h -> {
-                if (sidebar.closed() || !player.isOnline()) {
-                    h.cancel();
-                    return;
-                }
-                board.recordRefresh();
-                apply.run();
-            }, interval, interval);
-
-            board.trackRefresh(player, handle);
+            scheduleRefresh(sidebar, apply);
         } else {
             board.trackRefresh(player, null);
         }
         return sidebar;
+    }
+
+    private void paint(Sidebar sidebar, int maxIndex) {
+        if (sidebar.closed() || !player.isOnline()) {
+            return;
+        }
+        sidebar.clearLines();
+        sidebar.title(titleRenderer.apply(player));
+        int row = 0;
+        for (int i = 0; i <= maxIndex; i++) {
+            LineSpec spec = lines.get(i);
+            if (spec == null) {
+                sidebar.line(row++, Component.empty());
+            } else if (spec.condition() == null || spec.condition().test(player)) {
+                Component text = spec.renderer().apply(player);
+                if (spec.format() != null) {
+                    sidebar.line(row++, text, spec.format());
+                } else {
+                    sidebar.line(row++, text);
+                }
+            }
+        }
+    }
+
+    private void scheduleRefresh(Sidebar sidebar, Runnable apply) {
+        int interval = refreshTicks > 0 ? refreshTicks
+                : animated ? ANIMATION_REFRESH_TICKS : PLACEHOLDER_REFRESH_TICKS;
+        Schedulers.ScheduledHandle handle = Schedulers.entityTimer(board.plugin(), player, h -> {
+            if (sidebar.closed() || !player.isOnline()) {
+                h.cancel();
+                return;
+            }
+            board.recordRefresh();
+            apply.run();
+        }, interval, interval);
+        board.trackRefresh(player, handle);
     }
 
     private record Rendered(Function<Player, Component> renderer, boolean dynamic) {
