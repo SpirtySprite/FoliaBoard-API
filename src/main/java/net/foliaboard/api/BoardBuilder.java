@@ -3,6 +3,7 @@ package net.foliaboard.api;
 import net.foliaboard.FoliaBoard;
 import net.foliaboard.api.animation.Animation;
 import net.foliaboard.api.format.NumberFormat;
+import net.foliaboard.api.text.Legacy;
 import net.foliaboard.api.text.Text;
 import net.foliaboard.internal.scheduler.Schedulers;
 import net.kyori.adventure.text.Component;
@@ -12,16 +13,25 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 public final class BoardBuilder {
-    private record LineSpec(Function<Player, Component> renderer, NumberFormat format, boolean dynamic) {
+    private record LineSpec(Function<Player, Component> renderer, NumberFormat format, boolean dynamic,
+                            Predicate<Player> condition) {
+        LineSpec(Function<Player, Component> renderer, NumberFormat format, boolean dynamic) {
+            this(renderer, format, dynamic, null);
+        }
     }
+
+    private static final int ANIMATION_REFRESH_TICKS = 3;
+    private static final int PLACEHOLDER_REFRESH_TICKS = 20;
 
     private final FoliaBoard board;
     private final Player player;
 
     private Function<Player, Component> titleRenderer = p -> Component.empty();
     private boolean titleDynamic = false;
+    private boolean animated = false;
     private final TreeMap<Integer, LineSpec> lines = new TreeMap<>();
     private final java.util.List<net.foliaboard.api.hook.LineProcessor> processors = new java.util.ArrayList<>();
     private int nextAutoIndex = 0;
@@ -65,6 +75,13 @@ public final class BoardBuilder {
     public @NotNull BoardBuilder title(@NotNull Animation<Component> animation) {
         this.titleRenderer = p -> animation.current();
         this.titleDynamic = true;
+        this.animated = true;
+        return this;
+    }
+
+    public @NotNull BoardBuilder title(@NotNull Function<Player, String> perPlayer) {
+        this.titleRenderer = p -> resolve(p, perPlayer.apply(p));
+        this.titleDynamic = true;
         return this;
     }
 
@@ -88,6 +105,27 @@ public final class BoardBuilder {
 
     public @NotNull BoardBuilder line(int index, @NotNull Animation<Component> animation) {
         lines.put(index, new LineSpec(p -> animation.current(), null, true));
+        animated = true;
+        return this;
+    }
+
+    public @NotNull BoardBuilder line(int index, @NotNull Function<Player, String> perPlayer) {
+        lines.put(index, new LineSpec(p -> resolve(p, perPlayer.apply(p)), null, true));
+        return this;
+    }
+
+    public @NotNull BoardBuilder line(@NotNull Function<Player, String> perPlayer) {
+        return line(nextAutoIndex++, perPlayer);
+    }
+
+    public @NotNull BoardBuilder lineIf(@NotNull Predicate<Player> condition, @NotNull String anyFormat) {
+        Rendered r = render(anyFormat);
+        lines.put(nextAutoIndex++, new LineSpec(r.renderer, null, true, condition));
+        return this;
+    }
+
+    public @NotNull BoardBuilder lineIf(@NotNull Predicate<Player> condition, @NotNull Function<Player, String> perPlayer) {
+        lines.put(nextAutoIndex++, new LineSpec(p -> resolve(p, perPlayer.apply(p)), null, true, condition));
         return this;
     }
 
@@ -139,14 +177,17 @@ public final class BoardBuilder {
 
             sidebar.clearLines();
             sidebar.title(titleRenderer.apply(player));
+            int row = 0;
             for (int i = 0; i <= maxIndex; i++) {
                 LineSpec spec = lines.get(i);
                 if (spec == null) {
-                    sidebar.line(i, Component.empty());
+                    sidebar.line(row++, Component.empty());
+                } else if (spec.condition() != null && !spec.condition().test(player)) {
+                    continue;
                 } else if (spec.format() != null) {
-                    sidebar.line(i, spec.renderer().apply(player), spec.format());
+                    sidebar.line(row++, spec.renderer().apply(player), spec.format());
                 } else {
-                    sidebar.line(i, spec.renderer().apply(player));
+                    sidebar.line(row++, spec.renderer().apply(player));
                 }
             }
         };
@@ -154,7 +195,8 @@ public final class BoardBuilder {
         Schedulers.onEntity(board.plugin(), player, apply);
 
         if (dynamic) {
-            int interval = refreshTicks > 0 ? refreshTicks : 3;
+            int interval = refreshTicks > 0 ? refreshTicks
+                    : animated ? ANIMATION_REFRESH_TICKS : PLACEHOLDER_REFRESH_TICKS;
             Schedulers.ScheduledHandle handle = Schedulers.entityTimer(board.plugin(), player, h -> {
                 if (sidebar.closed() || !player.isOnline()) {
                     h.cancel();
@@ -175,11 +217,23 @@ public final class BoardBuilder {
     }
 
     private Rendered render(String raw) {
-        if (parsePlaceholders && raw.indexOf('%') >= 0) {
-            return new Rendered(new CachingRenderer(raw), true);
+        String template = Legacy.toMini(raw);
+        if (parsePlaceholders && template.indexOf('%') >= 0) {
+            return new Rendered(new CachingRenderer(template), true);
         }
-        Component parsed = Text.mini(raw);
+        Component parsed = Text.mini(template);
         return new Rendered(p -> parsed, false);
+    }
+
+    private Component resolve(Player viewer, String raw) {
+        if (raw == null) {
+            return Component.empty();
+        }
+        String template = Legacy.toMini(raw);
+        if (parsePlaceholders && template.indexOf('%') >= 0) {
+            template = board.placeholders().resolveForMiniMessage(viewer, template);
+        }
+        return Text.cached(template);
     }
 
     private final class CachingRenderer implements Function<Player, Component> {

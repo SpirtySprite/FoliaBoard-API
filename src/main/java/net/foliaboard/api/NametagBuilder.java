@@ -27,7 +27,7 @@ public final class NametagBuilder {
     }
 
     public @NotNull NametagBuilder prefix(@NotNull String miniMessage) {
-        this.prefix = Text.mini(miniMessage);
+        this.prefix = Text.parse(miniMessage);
         return this;
     }
 
@@ -37,7 +37,7 @@ public final class NametagBuilder {
     }
 
     public @NotNull NametagBuilder suffix(@NotNull String miniMessage) {
-        this.suffix = Text.mini(miniMessage);
+        this.suffix = Text.parse(miniMessage);
         return this;
     }
 

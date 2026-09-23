@@ -354,7 +354,7 @@ public final class FoliaBoard {
     }
 
     public void tabName(@NotNull Player target, @NotNull String miniMessage) {
-        tabName(target, net.foliaboard.api.text.Text.mini(miniMessage));
+        tabName(target, net.foliaboard.api.text.Text.parse(miniMessage));
     }
 
     public void tabName(@NotNull Player target, @NotNull net.kyori.adventure.text.ComponentLike name) {
@@ -375,7 +375,7 @@ public final class FoliaBoard {
     }
 
     public void tabNameFor(@NotNull Player viewer, @NotNull Player target, @NotNull String miniMessage) {
-        tabNameFor(viewer, target, net.foliaboard.api.text.Text.mini(miniMessage));
+        tabNameFor(viewer, target, net.foliaboard.api.text.Text.parse(miniMessage));
     }
 
     public void tabNameFor(@NotNull Player viewer, @NotNull Player target,
@@ -393,7 +393,7 @@ public final class FoliaBoard {
     }
 
     public void tabHeaderFooter(@NotNull Player player, @NotNull String header, @NotNull String footer) {
-        tabHeaderFooter(player, net.foliaboard.api.text.Text.mini(header), net.foliaboard.api.text.Text.mini(footer));
+        tabHeaderFooter(player, net.foliaboard.api.text.Text.parse(header), net.foliaboard.api.text.Text.parse(footer));
     }
 
     public void tabHeaderFooter(@NotNull Player player,
