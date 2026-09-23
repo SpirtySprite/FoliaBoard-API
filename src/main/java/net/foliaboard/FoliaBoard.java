@@ -7,6 +7,9 @@ import net.foliaboard.api.NametagBuilder;
 import net.foliaboard.api.ScoreObjective;
 import net.foliaboard.api.Sidebar;
 import net.foliaboard.api.SidebarProvider;
+import net.foliaboard.api.TabBuilder;
+import net.foliaboard.api.TabLayout;
+import net.foliaboard.api.TabList;
 import net.foliaboard.api.event.LayoutApplyEvent;
 import net.foliaboard.api.event.SidebarCreateEvent;
 import net.foliaboard.api.hook.LineProcessor;
@@ -43,6 +46,8 @@ public final class FoliaBoard {
 
     private final Map<UUID, SidebarImpl> sidebars = new ConcurrentHashMap<>();
     private final Map<UUID, Schedulers.ScheduledHandle> refreshHandles = new ConcurrentHashMap<>();
+    private final Map<UUID, TabList> tabs = new ConcurrentHashMap<>();
+    private volatile TabLayout globalTab;
     private final NametagManager nametags;
     private final AtomicInteger objectiveCounter = new AtomicInteger();
 
@@ -309,6 +314,45 @@ public final class FoliaBoard {
         return local;
     }
 
+    public @NotNull TabBuilder tab(@NotNull Player player) {
+        ensureOpen();
+        return new TabBuilder(this, player);
+    }
+
+    public @Nullable TabList tabIfPresent(@NotNull Player player) {
+        return tabs.get(player.getUniqueId());
+    }
+
+    public void trackTab(@NotNull Player player, @NotNull TabList tab) {
+        TabList previous = tabs.put(player.getUniqueId(), tab);
+        if (previous != null && previous != tab) {
+            previous.close();
+        }
+    }
+
+    public void removeTab(@NotNull Player player) {
+        TabList removed = tabs.remove(player.getUniqueId());
+        if (removed != null) {
+            removed.close();
+        }
+    }
+
+    public void setGlobalTab(@NotNull TabLayout layout) {
+        ensureOpen();
+        this.globalTab = layout;
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            layout.applyTo(tab(player)).build();
+        }
+    }
+
+    public void clearGlobalTab() {
+        this.globalTab = null;
+        for (TabList tab : tabs.values()) {
+            tab.close();
+        }
+        tabs.clear();
+    }
+
     public void tabName(@NotNull Player target, @NotNull String miniMessage) {
         tabName(target, net.foliaboard.api.text.Text.mini(miniMessage));
     }
@@ -415,6 +459,10 @@ public final class FoliaBoard {
         if (provider != null) {
             Schedulers.onEntity(plugin, player, () -> refreshFromProvider(player, provider));
         }
+        TabLayout tabLayout = globalTab;
+        if (tabLayout != null) {
+            tabLayout.applyTo(tab(player)).build();
+        }
         Layout global = globalLayout;
         if (global != null) {
             applyLayout(player, global);
@@ -440,6 +488,11 @@ public final class FoliaBoard {
 
     public void handleQuit(@NotNull Player player) {
         removeSidebar(player);
+        TabList tab = tabs.remove(player.getUniqueId());
+        if (tab != null) {
+            tab.close();
+        }
+        placeholders.forget(player.getUniqueId());
         nametags.onQuit(player);
         if (belowName != null) {
             belowName.onQuit(player);
@@ -464,6 +517,10 @@ public final class FoliaBoard {
             sidebar.close();
         }
         sidebars.clear();
+        for (TabList tab : tabs.values()) {
+            tab.close();
+        }
+        tabs.clear();
         nametags.closeAll();
         if (belowName != null) {
             belowName.closeAll();
