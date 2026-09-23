@@ -161,8 +161,24 @@ If any content is a placeholder string, an `Animation`, or a supplier, the board
 FoliaBoard auto-refreshes it on the player's own thread — you never write a scheduler. Everything
 else is painted once.
 
-Titles and lines accept `String` (MiniMessage), `Component`, or `Animation<Component>`. Lines may also
-carry a [number format](#number-formats).
+Titles and lines accept `String` (MiniMessage or legacy `&a` / `§a` / `&#ff00aa` codes), `Component`,
+`Animation<Component>` or a per-player `Function<Player, String>`. Lines may also carry a
+[number format](#number-formats).
+
+Conditional lines only show when their predicate holds, and the rows below move up to fill the gap:
+
+```java
+board.createBoard(player)
+     .placeholders(true)
+     .title("&5&lNEXUS")
+     .line("<gray>Money: <gold>%vault_eco_balance%")
+     .lineIf(p -> p.hasPermission("staff"), "<red>Staff mode")
+     .lineIf(p -> p.getWorld().getName().equals("event"), p -> "<aqua>Event: " + events.remaining())
+     .build();
+```
+
+Refresh rate defaults to 3 ticks when an animation is present and 20 ticks for placeholder or
+per-player content, so a board full of placeholders no longer resolves them six times a second.
 
 ### 2. Manual control
 
@@ -356,6 +372,58 @@ viewer's join or after the server resends player info. It's built on `Clientboun
 and **fails safe** — if the server build doesn't support it, `perViewerTabSupported()` returns false
 and the calls no-op rather than erroring.
 
+### Managed tab list
+
+`board.tab(player)` builds a tab list that refreshes itself and only resends the parts that changed
+(header and footer together, the entry name, the sort order):
+
+```java
+board.tab(player)
+     .placeholders(true)
+     .refreshEvery(20)
+     .header(List.of("&5&lNEXUS", "<gray>%online% players online"))
+     .footer("<gray>Ping: <white>%ping%ms")
+     .name("%luckperms_prefix% <white>%player%")
+     .orderByPermission("group.admin", "group.mod", "group.vip")
+     .build();
+```
+
+For everyone at once, set a global layout. It is applied to online players immediately and to every
+player who joins later, and closed on quit:
+
+```java
+board.setGlobalTab(TabLayout.of(tab -> tab
+        .placeholders(true)
+        .header("&5&lNEXUS")
+        .footer("<gray>%online% online")
+        .name(p -> (p.isOp() ? "<red>" : "<white>") + p.getName())));
+board.clearGlobalTab();
+```
+
+`resetOnClose(true)` (the default) clears the header, footer and name when the tab closes.
+
+---
+
+## Boss bars
+
+Per-player boss bars with placeholders, a dynamic progress and color, and an optional lifetime.
+Bars are keyed by an id: showing a new bar with the same id replaces the old one.
+
+```java
+board.bossBar(player, "double-xp")
+     .placeholders(true)
+     .text("<gold>XP x2 <gray>ends in <white>%event_remaining%")
+     .progress(p -> events.remainingRatio())
+     .color(BossBar.Color.YELLOW)
+     .refreshEvery(20)
+     .hideAfter(20 * 60 * 5)
+     .show();
+
+board.hideBossBar(player, "double-xp");
+```
+
+Progress is clamped to 0..1 (NaN becomes 0). Bars are hidden automatically when the player quits.
+
 ---
 
 ## Number formats
@@ -391,6 +459,14 @@ Animation<Component> pulse = Animations.pulseColor(Duration.ofSeconds(2),
 
 Animation<Component> typed = Animations.typewriter(Duration.ofMillis(80), Component.text("Loading…"));
 
+Animation<Component> wave = Animations.gradientWave(Duration.ofSeconds(2), "NEXUS",
+    TextColor.color(0xb44cff), TextColor.color(0x4cc9ff));
+
+Animation<Component> frames = Animations.frames(Duration.ofMillis(500), "&5NEXUS", "&dNEXUS");
+Animation<Component> alert = Animations.blink(Duration.ofMillis(500), mini("<red>!"));
+Animation<Component> both = Animations.sequence(List.of(wave, frames), Duration.ofSeconds(5));
+Animation<String> upper = frames.map(c -> Text.plain(c).toUpperCase(Locale.ROOT));
+
 // use directly in a builder / layout:
 board.createBoard(player).title(title).line(marquee).build();
 ```
@@ -414,7 +490,25 @@ Component c  = board.placeholders().component(player, "<gray>Rank: <gold>%rank%"
 ```
 
 **Built-ins:** `%player%` / `%player_name%` / `%name%`, `%displayname%`, `%world%`, `%online%`,
-`%max_players%`, `%ping%`, `%health%`, `%x%` / `%y%` / `%z%`.
+`%max_players%`, `%ping%`, `%health%`, `%level%`, `%gamemode%`, `%x%` / `%y%` / `%z%`.
+
+**Caching.** Expensive values can be cached per player for a duration. PlaceholderAPI results can be
+cached the same way. Caches are dropped when the player quits.
+
+```java
+board.placeholders().register("balance", p -> economy.format(p), Duration.ofSeconds(2));
+board.placeholders().cachePlaceholderApi(Duration.ofSeconds(1));
+board.placeholders().invalidate("balance");
+```
+
+**Legacy colors.** Values that contain `&a`, `§a`, `&#rrggbb` or `§x§r§r§g§g§b§b` (typical of
+PlaceholderAPI expansions and permission prefixes) are rendered as colors instead of raw codes. Turn it
+off with `convertLegacyColors(false)`, in which case the codes are stripped.
+
+**No double expansion.** Each `%token%` is resolved once: a value that itself contains `%other%` is
+left as is, so a player can't smuggle placeholders through a nickname. PlaceholderAPI is detected
+lazily, so it works even when it loads after your plugin. Tokens never contain spaces, so `50% off`
+is left alone.
 
 **Injection-safe:** in `component(...)`, placeholder *values* are escaped before parsing, so a value
 like a display name containing `<red>` or a PAPI value with `<click:...>` renders literally and can't
@@ -433,6 +527,10 @@ already do that for you.
 Component c   = Text.mini("<rainbow>hello</rainbow>");
 Component tag = Text.mini("<hover:show_text:'<green>Click!'><click:run_command:/spawn>Spawn</click>");
 String    mm  = Text.toMini(someComponent);   // round-trip back to a string
+Component any = Text.parse("&6Gold <blue>and blue");   // legacy codes and MiniMessage together
+Component hot = Text.cached("&5NEXUS");       // parsed once, reused
+String    raw = Legacy.strip("&aHi §lthere");  // "Hi there"
+String    safe = Text.escape(userInput);       // cannot inject tags
 ```
 
 Every `String` argument across the API goes through MiniMessage, so you rarely need `Text` directly.
@@ -547,38 +645,6 @@ global or per-world layout already drives that player's board).
 
 ---
 
-### Observability
-
-`board.stats()` returns a snapshot for profiling TPS impact:
-
-```java
-FoliaBoardStats s = board.stats();
-// s.totalPackets(), s.providerRefreshes(), s.activeSidebars(), s.activeNametags()
-getLogger().info(s.toString());
-```
-
-FoliaBoard also warns (once) when a board exceeds the 15-line client limit or a single line/title is
-unusually large (likely accidental payload bloat).
-
----
-
-## Remembering a player's layout
-
-Optionally persist which layout a player was on, so it's re-applied on their next join with no
-join-listener glue. Back the store with anything (a map, a config, a database, a storage plugin):
-
-```java
-board.setLayoutStore(new LayoutStore() {
-    public void remember(UUID player, String layout) { db.put(player, layout); }
-    public CompletableFuture<String> lastLayout(UUID player) { return db.getAsync(player); }
-});
-```
-
-When set, `applyLayout(...)` records the layout name, and FoliaBoard re-applies it on join (unless a
-global or per-world layout already drives that player's board).
-
----
-
 ## Lifecycle, cleanup & `/reload`
 
 - Create once in `onEnable`, call `board.close()` in `onDisable`. `close()` cancels every task,
@@ -594,9 +660,11 @@ global or per-world layout already drives that player's board).
 
 | Type | Key members |
 |---|---|
-| `FoliaBoard` | `create(plugin)`, `createBoard(p)`, `createNametag(p)`, `sidebar(p)`, `removeSidebar(p)`, `setGlobalSidebar(provider\|layout)`, `clearGlobalSidebar()`, `registerLayout/unregisterLayout/layout/applyLayout`, `setWorldLayout/clearWorldLayout`, `setLayoutStore`, `nametag(p)`, `belowName()`, `tabList()`, `tabName/resetTabName/tabOrder`, `tabNameFor/resetTabNameFor/perViewerTabSupported`, `tabHeaderFooter/clearTabHeaderFooter`, `addLineProcessor`, `placeholders()`, `stats()`, `close()` |
+| `FoliaBoard` | `create(plugin)`, `tab(p)`, `setGlobalTab/clearGlobalTab`, `bossBar(p, id)`, `hideBossBar`, `createBoard(p)`, `createNametag(p)`, `sidebar(p)`, `removeSidebar(p)`, `setGlobalSidebar(provider\|layout)`, `clearGlobalSidebar()`, `registerLayout/unregisterLayout/layout/applyLayout`, `setWorldLayout/clearWorldLayout`, `setLayoutStore`, `nametag(p)`, `belowName()`, `tabList()`, `tabName/resetTabName/tabOrder`, `tabNameFor/resetTabNameFor/perViewerTabSupported`, `tabHeaderFooter/clearTabHeaderFooter`, `addLineProcessor`, `placeholders()`, `stats()`, `close()` |
 | `ScoreboardAPI` | `init(plugin)`, `get()`, `shutdown()`, `createBoard(p)`, `createNametag(p)`, `sidebar(p)` |
-| `BoardBuilder` | `placeholders(bool)`, `refreshEvery(ticks)`, `title(...)`, `line(...)`, `lines(...)`, `blankLine()`, `build()` |
+| `BoardBuilder` | `placeholders(bool)`, `refreshEvery(ticks)`, `title(...)`, `line(...)`, `lineIf(...)`, `lines(...)`, `blankLine()`, `build()` |
+| `TabBuilder` / `TabList` / `TabLayout` | `header`, `footer`, `name`, `order`, `orderByPermission`, `placeholders`, `refreshEvery`, `resetOnClose`, `build()`, `refresh()`, `close()` |
+| `BossBarBuilder` / `ManagedBossBar` | `text`, `progress`, `color`, `overlay`, `placeholders`, `refreshEvery`, `hideAfter`, `show()`, `refresh()`, `hide()` |
 | `Sidebar` | `title(...)`, `line(...)`, `lines(...)`, `removeLine`, `clearLines`, `visible(...)`, `title()`, `lines()`, `lineCount()`, `close()` |
 | `NametagBuilder` | `prefix/suffix/color/nametagVisibility/collision`, `tabSort(int)`, `perViewer(resolver)`, `apply()` |
 | `Nametag` | `prefix/suffix/color/…`, `perViewer(resolver)`, `apply()`, `remove()` |
@@ -604,9 +672,9 @@ global or per-world layout already drives that player's board).
 | `SidebarProvider` | `title(p)`, `lines(p)`, `visible(p)`, `refreshIntervalTicks()`, `of(...)` |
 | `Layout` | `named(name, recipe)`, `applyTo(board, p)` |
 | `NumberFormat` | `blank()`, `fixed(c)`, `styled(style)`, `defaultFormat()` |
-| `Animations` | `cycle`, `scrollText`, `pulseColor`, `typewriter`, `mini` |
-| `Placeholders` | `register(...)`, `apply(p,text)`, `component(p,text)` |
-| `Text` | `mini(...)`, `toMini(c)` |
+| `Animations` | `cycle`, `frames`, `scrollText`, `pulseColor`, `typewriter`, `gradientWave`, `blink`, `sequence`, `mini` |
+| `Placeholders` | `register(key, fn[, ttl])`, `unregister`, `invalidate`, `forget`, `cachePlaceholderApi`, `convertLegacyColors`, `apply`, `component`, `value` |
+| `Text` / `Legacy` | `mini`, `parse`, `cached`, `plain`, `escape`, `toMini` / `toMini`, `strip`, `hasCodes` |
 | `AsyncUtil` | `async`, `asyncLater`, `onPlayer`, `global`, `isFolia` |
 | events / hooks | `SidebarCreateEvent`, `LayoutApplyEvent`, `LineProcessor` |
 
