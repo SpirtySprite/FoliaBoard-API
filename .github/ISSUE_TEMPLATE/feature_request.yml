@@ -1,0 +1,16 @@
+name: Feature request
+description: Suggest an improvement to FoliaBoard
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like the API to look like?
+      description: A short code sketch is the most useful thing you can give us.
+      render: java

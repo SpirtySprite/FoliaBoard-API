@@ -1,0 +1,35 @@
+name: Bug report
+description: Something in FoliaBoard does not work as documented
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: FoliaBoard version
+      placeholder: e.g. 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: server
+    attributes:
+      label: Server software and version
+      description: Output of /version. Say whether it is Paper, Folia or a fork.
+      placeholder: e.g. Folia 1.21.4 build 123
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps or code to reproduce
+      render: java
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console output or stack trace
+      render: text
