@@ -6,6 +6,10 @@ All notable changes to FoliaBoard are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Objective and team names now include a per-plugin namespace. Two plugins that each shade FoliaBoard
+  no longer overwrite each other's sidebars, below-name/tab objectives or nametag teams.
+
 ### Added
 - Continuous integration with a Paper API version matrix, CodeQL analysis and Dependabot.
 - Release workflow: pushing a `vX.Y.Z` tag builds the project and publishes a GitHub release.

@@ -17,6 +17,7 @@ import net.foliaboard.api.event.SidebarCreateEvent;
 import net.foliaboard.api.hook.LineProcessor;
 import net.foliaboard.api.layout.Layout;
 import net.foliaboard.api.placeholder.Placeholders;
+import net.foliaboard.internal.Ids;
 import net.foliaboard.internal.board.SidebarImpl;
 import net.foliaboard.internal.bossbar.ManagedBossBarImpl;
 import net.foliaboard.internal.listener.FoliaBoardListener;
@@ -44,6 +45,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public final class FoliaBoard {
     private final Plugin plugin;
+    private final String namespace;
     private final PacketAdapter adapter;
     private final Placeholders placeholders = new Placeholders();
 
@@ -77,9 +79,10 @@ public final class FoliaBoard {
 
     private FoliaBoard(Plugin plugin, PacketAdapter adapter) {
         this.plugin = plugin;
+        this.namespace = Ids.namespace(plugin.getName());
         this.adapter = adapter;
         adapter.attachMetrics(metrics);
-        this.nametags = new NametagManager(plugin, adapter);
+        this.nametags = new NametagManager(plugin, adapter, namespace);
         this.listener = new FoliaBoardListener(this);
         Bukkit.getPluginManager().registerEvents(listener, plugin);
     }
@@ -296,7 +299,7 @@ public final class FoliaBoard {
         if (local == null) {
             synchronized (this) {
                 if (belowName == null) {
-                    belowName = new ScoreObjectiveImpl(plugin, adapter, "fb_bn", DisplaySlotType.BELOW_NAME);
+                    belowName = new ScoreObjectiveImpl(plugin, adapter, Ids.belowNameObjective(namespace), DisplaySlotType.BELOW_NAME);
                 }
                 local = belowName;
             }
@@ -310,7 +313,7 @@ public final class FoliaBoard {
         if (local == null) {
             synchronized (this) {
                 if (tabList == null) {
-                    tabList = new ScoreObjectiveImpl(plugin, adapter, "fb_tab", DisplaySlotType.PLAYER_LIST);
+                    tabList = new ScoreObjectiveImpl(plugin, adapter, Ids.tabListObjective(namespace), DisplaySlotType.PLAYER_LIST);
                 }
                 local = tabList;
             }
@@ -581,7 +584,7 @@ public final class FoliaBoard {
     }
 
     private String nextObjectiveId() {
-        return "fb" + Integer.toHexString(objectiveCounter.getAndIncrement());
+        return Ids.sidebarObjective(namespace, objectiveCounter.getAndIncrement());
     }
 
     private void ensureOpen() {

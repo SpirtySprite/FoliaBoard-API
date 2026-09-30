@@ -1,6 +1,7 @@
 package net.foliaboard.internal.nametag;
 
 import net.foliaboard.api.Nametag;
+import net.foliaboard.internal.Ids;
 import net.foliaboard.internal.packet.PacketAdapter;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -18,12 +19,14 @@ import java.util.function.Supplier;
 public final class NametagManager {
     private final Plugin plugin;
     private final PacketAdapter adapter;
+    private final String namespace;
     private final Map<UUID, NametagImpl> byTarget = new ConcurrentHashMap<>();
     private final AtomicInteger counter = new AtomicInteger();
     private final Supplier<Collection<? extends Player>> online = Bukkit::getOnlinePlayers;
 
-    public NametagManager(Plugin plugin, PacketAdapter adapter) {
+    public NametagManager(Plugin plugin, PacketAdapter adapter, String namespace) {
         this.plugin = plugin;
+        this.namespace = namespace;
         this.adapter = adapter;
     }
 
@@ -47,14 +50,7 @@ public final class NametagManager {
     }
 
     private String generateTeamName(@Nullable Integer sortWeight) {
-        String unique = Integer.toHexString(counter.getAndIncrement());
-        String name = sortWeight != null
-                ? String.format(java.util.Locale.ROOT, "%04d", Math.max(0, Math.min(9999, sortWeight))) + unique
-                : "fbn" + unique;
-        if (name.length() > 16) {
-            throw new IllegalStateException("FoliaBoard: generated team name exceeds 16 chars: " + name);
-        }
-        return name;
+        return Ids.team(namespace, sortWeight, counter.getAndIncrement());
     }
 
     public @Nullable Nametag getIfPresent(@NotNull Player target) {
